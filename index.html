@@ -59,6 +59,7 @@
     padding: 12px 12px 12px 18px;
     margin-bottom: 12px;
   }
+  .row[hidden] { display: none; }
   .label { font-size: 18px; }
   .stepper { display: flex; align-items: center; gap: 6px; }
   .val {
@@ -90,9 +91,9 @@
   .switch:checked::after { transform: translateX(24px); }
   .hint { color: var(--muted); font-size: 14px; margin: -4px 4px 12px; }
 
-  /* Runden-Karte: Zähler oben, aufklappbare Namen darunter */
-  .rounds-card { background: var(--card); border-radius: 16px; margin-bottom: 12px; }
-  .rounds-card .row { background: none; margin: 0; }
+  /* Übungen-Karte: Zähler oben, aufklappbare Namen darunter */
+  .names-card { background: var(--card); border-radius: 16px; margin-bottom: 12px; }
+  .names-card .row { background: none; margin: 0; }
   .names-toggle {
     border: 0; background: none; padding: 0;
     color: var(--fg); font: inherit; text-align: left;
@@ -171,10 +172,10 @@
       <button class="step" data-d="1" aria-label="mehr">+</button>
     </div>
   </div>
-  <div class="rounds-card">
-    <div class="row" data-key="rounds">
+  <div class="names-card">
+    <div class="row" data-key="exercises">
       <button class="names-toggle" id="namesToggle" aria-expanded="false" aria-controls="namesList">
-        <span class="label">Runden</span>
+        <span class="label">Übungen</span>
         <span class="names-count" id="namesCount"></span>
       </button>
       <div class="stepper">
@@ -184,6 +185,22 @@
       </div>
     </div>
     <div class="names-list" id="namesList" hidden></div>
+  </div>
+  <div class="row" data-key="rounds">
+    <span class="label">Runden</span>
+    <div class="stepper">
+      <button class="step" data-d="-1" aria-label="weniger">−</button>
+      <output class="val"></output>
+      <button class="step" data-d="1" aria-label="mehr">+</button>
+    </div>
+  </div>
+  <div class="row" data-key="roundRest" id="roundRestRow">
+    <span class="label">Rundenpause</span>
+    <div class="stepper">
+      <button class="step" data-d="-1" aria-label="weniger">−</button>
+      <output class="val"></output>
+      <button class="step" data-d="1" aria-label="mehr">+</button>
+    </div>
   </div>
   <div class="row" data-key="prep">
     <span class="label">Vorlauf</span>
@@ -219,10 +236,11 @@
 
 <script>
 const STORAGE_KEY = 'intervall-timer:v1';
-const DEFAULTS = { work: 30, rest: 15, rounds: 8, prep: 10, music: true, names: [] };
-const LIMITS = { work: [5, 3600], rest: [0, 3600], rounds: [1, 99], prep: [0, 60] };
+const DEFAULTS = { work: 30, rest: 15, exercises: 1, rounds: 8, roundRest: 60, prep: 10, music: true, names: [] };
+const LIMITS = { work: [5, 3600], rest: [0, 3600], exercises: [1, 30], rounds: [1, 99], roundRest: [0, 3600], prep: [0, 60] };
+const COUNT_KEYS = ['exercises', 'rounds'];
 const NAME_MAX = 40;
-const PHASE_LABEL = { prep: 'Bereit machen', work: 'Aktivität', rest: 'Pause' };
+const PHASE_LABEL = { prep: 'Bereit machen', work: 'Aktivität', rest: 'Pause', roundRest: 'Rundenpause' };
 
 const $ = s => document.querySelector(s);
 
@@ -242,11 +260,16 @@ function load() {
         if (typeof stored[k] === 'boolean') s[k] = stored[k];
       } else if (Array.isArray(DEFAULTS[k])) {
         if (Array.isArray(stored[k])) {
-          s[k] = stored[k].slice(0, LIMITS.rounds[1]).map(n => typeof n === 'string' ? n.slice(0, NAME_MAX) : '');
+          s[k] = stored[k].slice(0, LIMITS.exercises[1]).map(n => typeof n === 'string' ? n.slice(0, NAME_MAX) : '');
         }
       } else if (Number.isFinite(stored[k])) {
         s[k] = clamp(k, stored[k]);
       }
+    }
+    // Alte Einstellungen mit benannten Runden: jede Runde war eine eigene Übung
+    if (stored && !('exercises' in stored) && s.names.slice(0, s.rounds).some(n => n.trim())) {
+      s.exercises = clamp('exercises', s.rounds);
+      s.rounds = 1;
     }
   } catch (e) {}
   return s;
@@ -265,7 +288,7 @@ function fmt(sec) {
 
 // Zeiten: 5-s-Schritte, ab 2 Minuten 15-s-Schritte
 function stepValue(key, v, d) {
-  if (key === 'rounds') return clamp(key, v + d);
+  if (COUNT_KEYS.includes(key)) return clamp(key, v + d);
   const size = (d > 0 ? v >= 120 : v > 120) ? 15 : 5;
   return clamp(key, v + d * size);
 }
@@ -275,11 +298,13 @@ function renderSetup() {
     const key = row.dataset.key;
     const v = settings[key];
     let text;
-    if (key === 'rounds') text = String(v);
+    if (COUNT_KEYS.includes(key)) text = String(v);
     else if (v === 0) text = 'aus';
     else text = fmt(v);
     row.querySelector('.val').textContent = text;
   }
+  // Bei nur einer Übung ist jede Pause zugleich Rundenpause
+  $('#roundRestRow').hidden = settings.exercises < 2;
   $('#musicToggle').checked = settings.music;
   $('#musicHint').textContent = settings.music
     ? 'Töne laufen über der Musik, sind im Stummmodus aber stumm.'
@@ -289,15 +314,15 @@ function renderSetup() {
   $('#setupTotal').textContent = 'Gesamtdauer ' + fmt(plan[plan.length - 1].end);
 }
 
-// ---------- Rundennamen ----------
-// Namen über der aktuellen Rundenzahl bleiben gespeichert, falls die Runden wieder erhöht werden
-function roundName(r) {
-  return (settings.names[r - 1] || '').trim();
+// ---------- Übungsnamen ----------
+// Namen über der aktuellen Übungszahl bleiben gespeichert, falls die Übungen wieder erhöht werden
+function exerciseName(x) {
+  return (settings.names[x - 1] || '').trim();
 }
 
 function renderNamesCount() {
   let n = 0;
-  for (let r = 1; r <= settings.rounds; r++) if (roundName(r)) n++;
+  for (let x = 1; x <= settings.exercises; x++) if (exerciseName(x)) n++;
   $('#namesCount').textContent = n ? `${n} benannt` : 'benennen';
 }
 
@@ -310,13 +335,13 @@ $('#namesToggle').addEventListener('click', e => {
 // Nur fehlende Felder ergänzen bzw. überzählige entfernen, damit Fokus und Eingabe erhalten bleiben
 function renderNames() {
   const list = $('#namesList');
-  while (list.children.length > settings.rounds) list.lastElementChild.remove();
-  for (let i = list.children.length; i < settings.rounds; i++) {
+  while (list.children.length > settings.exercises) list.lastElementChild.remove();
+  for (let i = list.children.length; i < settings.exercises; i++) {
     const input = document.createElement('input');
     input.className = 'name-input';
     input.type = 'text';
     input.maxLength = NAME_MAX;
-    input.placeholder = `Runde ${i + 1}`;
+    input.placeholder = `Übung ${i + 1}`;
     input.enterKeyHint = 'next';
     input.autocomplete = 'off';
     input.value = settings.names[i] || '';
@@ -359,12 +384,19 @@ for (const btn of document.querySelectorAll('.step')) {
 }
 
 // ---------- Ablaufplan ----------
+// Jede Runde durchläuft alle Übungen; Pause zwischen den Übungen,
+// zwischen den Runden die Rundenpause (bei nur einer Übung die normale Pause)
 function buildPlan(s) {
   const segs = [];
-  if (s.prep > 0) segs.push({ type: 'prep', dur: s.prep, round: 0 });
+  if (s.prep > 0) segs.push({ type: 'prep', dur: s.prep, round: 0, ex: 0 });
   for (let r = 1; r <= s.rounds; r++) {
-    segs.push({ type: 'work', dur: s.work, round: r });
-    if (r < s.rounds && s.rest > 0) segs.push({ type: 'rest', dur: s.rest, round: r });
+    for (let x = 1; x <= s.exercises; x++) {
+      segs.push({ type: 'work', dur: s.work, round: r, ex: x });
+      if (r === s.rounds && x === s.exercises) break;
+      const roundBreak = x === s.exercises && s.exercises > 1;
+      const dur = roundBreak ? s.roundRest : s.rest;
+      if (dur > 0) segs.push({ type: 'rest', dur, round: r, ex: x, roundBreak });
+    }
   }
   let t = 0;
   for (const seg of segs) { seg.start = t; t += seg.dur; seg.end = t; }
@@ -441,14 +473,22 @@ function show(id) {
   for (const s of document.querySelectorAll('.screen')) s.classList.toggle('active', s.id === id);
 }
 
-function renderPhase(seg) {
+function progressText(seg) {
+  const { rounds, exercises } = settings;
+  if (!seg.round) return exercises > 1 ? `${rounds} Runden à ${exercises} Übungen` : `${rounds} Runden`;
+  const r = `Runde ${seg.round} / ${rounds}`;
+  return exercises > 1 ? `${r} · Übung ${seg.ex} / ${exercises}` : r;
+}
+
+function renderPhase(i) {
+  const seg = plan[i];
   document.body.dataset.phase = seg.type;
-  const name = seg.type === 'work' && roundName(seg.round);
-  $('#phase').textContent = name || PHASE_LABEL[seg.type];
+  const name = seg.type === 'work' && exerciseName(seg.ex);
+  $('#phase').textContent = name || PHASE_LABEL[seg.roundBreak ? 'roundRest' : seg.type];
   // In Vorlauf und Pause die nächste Übung ankündigen, sofern sie einen Namen hat
-  const next = seg.type !== 'work' && roundName(seg.round + 1);
-  if (next) $('#round').textContent = 'Als Nächstes: ' + next;
-  else $('#round').textContent = seg.round ? `Runde ${seg.round} / ${settings.rounds}` : `${settings.rounds} Runden`;
+  const nextSeg = seg.type !== 'work' && plan[i + 1];
+  const next = nextSeg && exerciseName(nextSeg.ex);
+  $('#round').textContent = next ? 'Als Nächstes: ' + next : progressText(seg);
 }
 
 function tick() {
@@ -466,7 +506,7 @@ function tick() {
     if (sounds[seg.type]) sounds[seg.type]();
     lastSeg = i;
     lastSec = sec;
-    renderPhase(seg);
+    renderPhase(i);
   } else if (sec !== lastSec) {
     lastSec = sec;
     if (sec >= 1 && sec <= 3) sounds.tick();
