@@ -19,4 +19,6 @@ Schlichter Timer für Intervalltraining als Web-App für das iPhone, gebaut für
 2. **Teilen → Zum Home-Bildschirm**
 3. App über das Symbol auf dem Home-Bildschirm starten
 
+Nach einer Änderung zeigt die App zunächst noch die gespeicherte Fassung; welche läuft, steht unten auf dem Einstellungsbildschirm („Version 1“). Spätestens beim zweiten Öffnen ist die neue da.
+
 Töne gibt es erst nach dem Tippen auf **Start** (Vorgabe von iOS). Bei gesperrtem Bildschirm sind sie nicht zuverlässig.
