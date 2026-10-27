@@ -90,6 +90,31 @@
   .switch:checked::after { transform: translateX(24px); }
   .hint { color: var(--muted); font-size: 14px; margin: -4px 4px 12px; }
 
+  /* Runden-Karte: Zähler oben, aufklappbare Namen darunter */
+  .rounds-card { background: var(--card); border-radius: 16px; margin-bottom: 12px; }
+  .rounds-card .row { background: none; margin: 0; }
+  .names-toggle {
+    border: 0; background: none; padding: 0;
+    color: var(--fg); font: inherit; text-align: left;
+    align-self: stretch;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .names-count { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .names-count::after { content: " ›"; display: inline-block; margin-left: 4px; transition: transform .2s; }
+  .names-toggle[aria-expanded="true"] .names-count::after { transform: rotate(90deg); }
+  .names-list { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 12px; }
+  .names-list[hidden] { display: none; }
+  .name-input {
+    width: 100%; height: 52px;
+    border: 0; border-radius: 14px;
+    padding: 0 16px;
+    background: #2a2f39; color: var(--fg);
+    font: inherit; font-size: 18px;
+    -webkit-user-select: text; user-select: text;
+  }
+  .name-input::placeholder { color: var(--muted); }
+  .name-input:focus { outline: 2px solid var(--accent); }
+
   .total { color: var(--muted); text-align: center; margin: 12px 0 0; font-size: 16px; }
 
   .big {
@@ -103,7 +128,7 @@
 
   /* Laufanzeige */
   #run { text-align: center; }
-  .phase { font-size: 32px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-top: 4vh; }
+  .phase { font-size: 32px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-top: 4vh; overflow-wrap: anywhere; }
   .round { font-size: 22px; margin-top: 8px; opacity: .9; }
   .time {
     font-size: min(30vw, 34vh);
@@ -146,13 +171,19 @@
       <button class="step" data-d="1" aria-label="mehr">+</button>
     </div>
   </div>
-  <div class="row" data-key="rounds">
-    <span class="label">Runden</span>
-    <div class="stepper">
-      <button class="step" data-d="-1" aria-label="weniger">−</button>
-      <output class="val"></output>
-      <button class="step" data-d="1" aria-label="mehr">+</button>
+  <div class="rounds-card">
+    <div class="row" data-key="rounds">
+      <button class="names-toggle" id="namesToggle" aria-expanded="false" aria-controls="namesList">
+        <span class="label">Runden</span>
+        <span class="names-count" id="namesCount"></span>
+      </button>
+      <div class="stepper">
+        <button class="step" data-d="-1" aria-label="weniger">−</button>
+        <output class="val"></output>
+        <button class="step" data-d="1" aria-label="mehr">+</button>
+      </div>
     </div>
+    <div class="names-list" id="namesList" hidden></div>
   </div>
   <div class="row" data-key="prep">
     <span class="label">Vorlauf</span>
@@ -188,8 +219,9 @@
 
 <script>
 const STORAGE_KEY = 'intervall-timer:v1';
-const DEFAULTS = { work: 30, rest: 15, rounds: 8, prep: 10, music: true };
+const DEFAULTS = { work: 30, rest: 15, rounds: 8, prep: 10, music: true, names: [] };
 const LIMITS = { work: [5, 3600], rest: [0, 3600], rounds: [1, 99], prep: [0, 60] };
+const NAME_MAX = 40;
 const PHASE_LABEL = { prep: 'Bereit machen', work: 'Aktivität', rest: 'Pause' };
 
 const $ = s => document.querySelector(s);
@@ -208,6 +240,10 @@ function load() {
       if (!stored) break;
       if (typeof DEFAULTS[k] === 'boolean') {
         if (typeof stored[k] === 'boolean') s[k] = stored[k];
+      } else if (Array.isArray(DEFAULTS[k])) {
+        if (Array.isArray(stored[k])) {
+          s[k] = stored[k].slice(0, LIMITS.rounds[1]).map(n => typeof n === 'string' ? n.slice(0, NAME_MAX) : '');
+        }
       } else if (Number.isFinite(stored[k])) {
         s[k] = clamp(k, stored[k]);
       }
@@ -248,8 +284,56 @@ function renderSetup() {
   $('#musicHint').textContent = settings.music
     ? 'Töne laufen über der Musik, sind im Stummmodus aber stumm.'
     : 'Töne auch im Stummmodus, laufende Musik wird aber angehalten.';
+  renderNames();
   const plan = buildPlan(settings);
   $('#setupTotal').textContent = 'Gesamtdauer ' + fmt(plan[plan.length - 1].end);
+}
+
+// ---------- Rundennamen ----------
+// Namen über der aktuellen Rundenzahl bleiben gespeichert, falls die Runden wieder erhöht werden
+function roundName(r) {
+  return (settings.names[r - 1] || '').trim();
+}
+
+function renderNamesCount() {
+  let n = 0;
+  for (let r = 1; r <= settings.rounds; r++) if (roundName(r)) n++;
+  $('#namesCount').textContent = n ? `${n} benannt` : 'benennen';
+}
+
+$('#namesToggle').addEventListener('click', e => {
+  const open = e.currentTarget.getAttribute('aria-expanded') !== 'true';
+  e.currentTarget.setAttribute('aria-expanded', open);
+  $('#namesList').hidden = !open;
+});
+
+// Nur fehlende Felder ergänzen bzw. überzählige entfernen, damit Fokus und Eingabe erhalten bleiben
+function renderNames() {
+  const list = $('#namesList');
+  while (list.children.length > settings.rounds) list.lastElementChild.remove();
+  for (let i = list.children.length; i < settings.rounds; i++) {
+    const input = document.createElement('input');
+    input.className = 'name-input';
+    input.type = 'text';
+    input.maxLength = NAME_MAX;
+    input.placeholder = `Runde ${i + 1}`;
+    input.enterKeyHint = 'next';
+    input.autocomplete = 'off';
+    input.value = settings.names[i] || '';
+    input.addEventListener('input', () => {
+      settings.names[i] = input.value;
+      save();
+      renderNamesCount();
+    });
+    input.addEventListener('keydown', e => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const next = input.nextElementSibling;
+      if (next) next.focus(); else input.blur();
+    });
+    list.append(input);
+  }
+  renderNamesCount();
 }
 
 $('#musicToggle').addEventListener('change', e => {
@@ -359,8 +443,12 @@ function show(id) {
 
 function renderPhase(seg) {
   document.body.dataset.phase = seg.type;
-  $('#phase').textContent = PHASE_LABEL[seg.type];
-  $('#round').textContent = seg.round ? `Runde ${seg.round} / ${settings.rounds}` : `${settings.rounds} Runden`;
+  const name = seg.type === 'work' && roundName(seg.round);
+  $('#phase').textContent = name || PHASE_LABEL[seg.type];
+  // In Vorlauf und Pause die nächste Übung ankündigen, sofern sie einen Namen hat
+  const next = seg.type !== 'work' && roundName(seg.round + 1);
+  if (next) $('#round').textContent = 'Als Nächstes: ' + next;
+  else $('#round').textContent = seg.round ? `Runde ${seg.round} / ${settings.rounds}` : `${settings.rounds} Runden`;
 }
 
 function tick() {
