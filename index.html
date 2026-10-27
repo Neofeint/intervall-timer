@@ -74,6 +74,22 @@
   }
   .step:active { background: #3a404c; }
 
+  .toggle-row { padding: 18px 18px; }
+  .switch {
+    appearance: none; -webkit-appearance: none;
+    width: 56px; height: 32px; margin: 0;
+    border-radius: 16px; background: #3a404c;
+    position: relative; transition: background .2s;
+  }
+  .switch::after {
+    content: ""; position: absolute; top: 3px; left: 3px;
+    width: 26px; height: 26px; border-radius: 50%; background: #fff;
+    transition: transform .2s;
+  }
+  .switch:checked { background: var(--rest); }
+  .switch:checked::after { transform: translateX(24px); }
+  .hint { color: var(--muted); font-size: 14px; margin: -4px 4px 12px; }
+
   .total { color: var(--muted); text-align: center; margin: 12px 0 0; font-size: 16px; }
 
   .big {
@@ -147,6 +163,12 @@
     </div>
   </div>
 
+  <label class="row toggle-row">
+    <span class="label">Musik weiterlaufen</span>
+    <input type="checkbox" class="switch" id="musicToggle">
+  </label>
+  <p class="hint" id="musicHint"></p>
+
   <p class="total" id="setupTotal"></p>
 
   <button class="big" id="startBtn">Start</button>
@@ -166,7 +188,7 @@
 
 <script>
 const STORAGE_KEY = 'intervall-timer:v1';
-const DEFAULTS = { work: 30, rest: 15, rounds: 8, prep: 10 };
+const DEFAULTS = { work: 30, rest: 15, rounds: 8, prep: 10, music: true };
 const LIMITS = { work: [5, 3600], rest: [0, 3600], rounds: [1, 99], prep: [0, 60] };
 const PHASE_LABEL = { prep: 'Bereit machen', work: 'Aktivität', rest: 'Pause' };
 
@@ -183,7 +205,12 @@ function load() {
   try {
     const stored = JSON.parse(localStorage.getItem(STORAGE_KEY));
     for (const k of Object.keys(DEFAULTS)) {
-      if (stored && Number.isFinite(stored[k])) s[k] = clamp(k, stored[k]);
+      if (!stored) break;
+      if (typeof DEFAULTS[k] === 'boolean') {
+        if (typeof stored[k] === 'boolean') s[k] = stored[k];
+      } else if (Number.isFinite(stored[k])) {
+        s[k] = clamp(k, stored[k]);
+      }
     }
   } catch (e) {}
   return s;
@@ -208,7 +235,7 @@ function stepValue(key, v, d) {
 }
 
 function renderSetup() {
-  for (const row of document.querySelectorAll('.row')) {
+  for (const row of document.querySelectorAll('.row[data-key]')) {
     const key = row.dataset.key;
     const v = settings[key];
     let text;
@@ -217,9 +244,19 @@ function renderSetup() {
     else text = fmt(v);
     row.querySelector('.val').textContent = text;
   }
+  $('#musicToggle').checked = settings.music;
+  $('#musicHint').textContent = settings.music
+    ? 'Töne laufen über der Musik, sind im Stummmodus aber stumm.'
+    : 'Töne auch im Stummmodus, laufende Musik wird aber angehalten.';
   const plan = buildPlan(settings);
   $('#setupTotal').textContent = 'Gesamtdauer ' + fmt(plan[plan.length - 1].end);
 }
+
+$('#musicToggle').addEventListener('change', e => {
+  settings.music = e.target.checked;
+  save();
+  renderSetup();
+});
 
 // Gedrückt halten wiederholt den Schritt
 for (const btn of document.querySelectorAll('.step')) {
@@ -251,11 +288,17 @@ function buildPlan(s) {
 }
 
 // ---------- Ton ----------
-let ctx = null;
+let ctx = null, sessionType = null;
 
 function ensureAudio() {
-  // Safari 17+: Ton auch bei aktiviertem Stummmodus
-  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) {}
+  // Safari 17+: 'ambient' mischt sich mit Musik, ist im Stummmodus aber stumm;
+  // 'playback' klingt auch im Stummmodus, hält andere Wiedergabe aber an
+  const type = settings.music ? 'ambient' : 'playback';
+  if (type !== sessionType) {
+    try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (e) {}
+    if (ctx) { ctx.close(); ctx = null; }
+    sessionType = type;
+  }
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return;
   if (!ctx) ctx = new AC();
