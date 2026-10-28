@@ -116,7 +116,7 @@
   .name-input::placeholder { color: var(--muted); }
   .name-input:focus { outline: 2px solid var(--accent); }
 
-  .total { color: var(--muted); text-align: center; margin: 12px 0 0; font-size: 16px; }
+  .total { color: var(--muted); text-align: center; margin: 12px 0; font-size: 16px; }
 
   .big {
     margin-top: auto;
@@ -150,6 +150,20 @@
     font-size: 22px; font-weight: 600;
   }
   .controls button:active { background: rgba(0,0,0,.4); }
+  .halfway {
+    position: fixed; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    padding: 14px 24px; border-radius: 20px;
+    background: rgba(0,0,0,.35);
+    font-size: 26px; font-weight: 700; white-space: nowrap;
+    opacity: 0; pointer-events: none;
+  }
+  .halfway.show { animation: halfway 1.8s ease-out; }
+  @keyframes halfway {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(.9); }
+    15%, 70% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; }
+  }
 </style>
 </head>
 <body>
@@ -221,8 +235,8 @@
   <p class="total" id="setupTotal"></p>
 
   <button class="big" id="startBtn">Start</button>
-  <!-- Bei jeder Änderung der App um eins erhöhen -->
-  <p class="version">Version 1</p>
+  <!-- Bei jeder Änderung der App erhöhen (kleine Änderungen: 1.1, 1.2 …) -->
+  <p class="version">Version 1.1</p>
 </section>
 
 <section id="run" class="screen">
@@ -231,6 +245,7 @@
   <div class="time" id="time">0:00</div>
   <div class="bar-wrap"><div class="bar" id="bar"></div></div>
   <div class="remaining" id="remaining"></div>
+  <div class="halfway" id="halfway" aria-live="polite">Hälfte geschafft!</div>
   <div class="controls">
     <button id="pauseBtn">Pause</button>
     <button id="stopBtn">Beenden</button>
@@ -239,7 +254,7 @@
 
 <script>
 const STORAGE_KEY = 'intervall-timer:v1';
-const DEFAULTS = { work: 30, rest: 15, exercises: 1, rounds: 8, roundRest: 60, prep: 10, music: true, names: [] };
+const DEFAULTS = { work: 30, rest: 10, exercises: 5, rounds: 3, roundRest: 10, prep: 10, music: true, names: [] };
 const LIMITS = { work: [5, 3600], rest: [0, 3600], exercises: [1, 30], rounds: [1, 99], roundRest: [0, 3600], prep: [0, 60] };
 const COUNT_KEYS = ['exercises', 'rounds'];
 const NAME_MAX = 40;
@@ -449,6 +464,7 @@ const sounds = {
   tick: () => tone(784, 0.12),
   work: () => tone(1047, 0.5),
   rest: () => tone(523, 0.5),
+  half: () => { tone(880, 0.12); tone(880, 0.12, 0.18); },
   done: () => { [523, 659, 784, 1047].forEach((f, i) => tone(f, i === 3 ? 0.6 : 0.16, i * 0.16)); },
 };
 
@@ -466,7 +482,7 @@ function releaseWake() {
 }
 
 // ---------- Ablauf ----------
-let plan = [], state = 'setup', startedAt = 0, offset = 0, lastSeg = -1, lastSec = -1, timer = null;
+let plan = [], state = 'setup', startedAt = 0, offset = 0, lastSeg = -1, lastSec = -1, halfDone = false, timer = null;
 
 function elapsed() {
   return state === 'running' ? offset + (performance.now() - startedAt) / 1000 : offset;
@@ -509,15 +525,30 @@ function tick() {
     if (sounds[seg.type]) sounds[seg.type]();
     lastSeg = i;
     lastSec = sec;
+    halfDone = false;
     renderPhase(i);
   } else if (sec !== lastSec) {
     lastSec = sec;
     if (sec >= 1 && sec <= 3) sounds.tick();
   }
 
+  // Halbzeit einer Aktivität; bei sehr kurzen fiele sie in den Countdown
+  if (seg.type === 'work' && !halfDone && seg.dur >= 10 && rem <= seg.dur / 2) {
+    halfDone = true;
+    sounds.half();
+    showHalfway();
+  }
+
   $('#time').textContent = fmt(rem);
   $('#bar').style.transform = `scaleX(${1 - rem / seg.dur})`;
   $('#remaining').textContent = 'Gesamt noch ' + fmt(total - e);
+}
+
+function showHalfway() {
+  const el = $('#halfway');
+  el.classList.remove('show');
+  void el.offsetWidth; // Animation neu starten
+  el.classList.add('show');
 }
 
 function start() {
@@ -567,6 +598,7 @@ function finish() {
 function stop() {
   clearInterval(timer);
   state = 'setup';
+  $('#halfway').classList.remove('show');
   delete document.body.dataset.phase;
   $('#stopBtn').textContent = 'Beenden';
   releaseWake();

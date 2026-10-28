@@ -8,7 +8,7 @@ Schlichter Timer für Intervalltraining als Web-App für das iPhone, gebaut für
 - jede Runde durchläuft alle Übungen nacheinander, mit Pause zwischen den Übungen und Rundenpause zwischen den Runden (erscheint erst ab zwei Übungen; bei einer Übung gilt die normale Pause)
 - optionale Übungsnamen (z. B. „Liegestütze“), einzutragen über „benennen“ unter „Übungen“: erscheinen statt „Aktivität“ als Überschrift und werden in Vorlauf und Pause als nächste Übung angekündigt
 - große Restzeit-Anzeige mit Phasenfarben, Runden- und Übungszähler
-- Töne: Countdown-Piep bei 3-2-1, Signal bei Phasenwechsel und am Ende
+- Töne: Countdown-Piep bei 3-2-1, Signal bei Phasenwechsel und am Ende, Doppelpiep mit kurzem „Hälfte geschafft!“ zur Halbzeit jeder Aktivität (ab 10 Sekunden)
 - Schalter „Musik weiterlaufen“: an – Töne laufen über der Musik (z. B. Deezer), sind im Stummmodus aber stumm; aus – Töne auch im Stummmodus, laufende Musik wird aber angehalten
 - Bildschirm bleibt während des Trainings an
 - funktioniert nach dem ersten Aufruf auch offline
@@ -19,6 +19,6 @@ Schlichter Timer für Intervalltraining als Web-App für das iPhone, gebaut für
 2. **Teilen → Zum Home-Bildschirm**
 3. App über das Symbol auf dem Home-Bildschirm starten
 
-Nach einer Änderung zeigt die App zunächst noch die gespeicherte Fassung; welche läuft, steht unten auf dem Einstellungsbildschirm („Version 1“). Spätestens beim zweiten Öffnen ist die neue da.
+Nach einer Änderung zeigt die App zunächst noch die gespeicherte Fassung; welche läuft, steht unten auf dem Einstellungsbildschirm (z. B. „Version 1.1“). Spätestens beim zweiten Öffnen ist die neue da.
 
 Töne gibt es erst nach dem Tippen auf **Start** (Vorgabe von iOS). Bei gesperrtem Bildschirm sind sie nicht zuverlässig.
