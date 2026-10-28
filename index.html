@@ -43,21 +43,21 @@
   .screen {
     display: none;
     min-height: 100%;
-    padding: calc(env(safe-area-inset-top) + 24px) 16px calc(env(safe-area-inset-bottom) + 24px);
+    padding: calc(env(safe-area-inset-top) + 16px) 16px calc(env(safe-area-inset-bottom) + 24px);
     max-width: 480px;
     margin: 0 auto;
     flex-direction: column;
   }
   .screen.active { display: flex; }
 
-  h1 { font-size: 28px; margin: 8px 0 24px; }
+  h1 { font-size: 28px; margin: 4px 0 16px; }
 
   .row {
     display: flex; align-items: center; justify-content: space-between;
     background: var(--card);
     border-radius: 16px;
-    padding: 12px 12px 12px 18px;
-    margin-bottom: 12px;
+    padding: 8px 12px 8px 18px;
+    margin-bottom: 8px;
   }
   .row[hidden] { display: none; }
   .label { font-size: 18px; }
@@ -75,7 +75,7 @@
   }
   .step:active { background: #3a404c; }
 
-  .toggle-row { padding: 18px 18px; }
+  .toggle-row { padding: 14px 18px; }
   .switch {
     appearance: none; -webkit-appearance: none;
     width: 56px; height: 32px; margin: 0;
@@ -92,7 +92,7 @@
   .hint { color: var(--muted); font-size: 14px; margin: -4px 4px 12px; }
 
   /* Übungen-Karte: Zähler oben, aufklappbare Namen darunter */
-  .names-card { background: var(--card); border-radius: 16px; margin-bottom: 12px; }
+  .names-card { background: var(--card); border-radius: 16px; margin-bottom: 8px; }
   .names-card .row { background: none; margin: 0; }
   .names-toggle {
     border: 0; background: none; padding: 0;
@@ -116,7 +116,7 @@
   .name-input::placeholder { color: var(--muted); }
   .name-input:focus { outline: 2px solid var(--accent); }
 
-  .total { color: var(--muted); text-align: center; margin: 12px 0; font-size: 16px; }
+  .total { color: var(--muted); text-align: center; margin: 8px 0; font-size: 16px; }
 
   .big {
     margin-top: auto;
@@ -236,7 +236,7 @@
 
   <button class="big" id="startBtn">Start</button>
   <!-- Bei jeder Änderung der App erhöhen (kleine Änderungen: 1.1, 1.2 …) -->
-  <p class="version">Version 1.1</p>
+  <p class="version">Version 1.2</p>
 </section>
 
 <section id="run" class="screen">
